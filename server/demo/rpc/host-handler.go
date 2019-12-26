@@ -1,9 +1,10 @@
 package rpc
 
 import (
-	"github.com/kataras/iris/core/errors"
-	"github.com/peterq/pan-light/server/realtime"
+	"errors"
 	"strings"
+
+	"github.com/peterq/pan-light/server/realtime"
 )
 
 var hostRpcMap = map[string]realtime.RpcHandler{
@@ -89,6 +90,7 @@ var hostEventMap = map[string]realtime.EventHandler{
 		slave := host.slaves[slaveName]
 
 		unexpected := slave.state == slaveStateRunning
+		slave.state = slaveStateWait
 		room := server.RoomByName("room.slave.all.user." + slaveName)
 		room.Broadcast("slave.exit", gson{
 			"unexpected": unexpected,

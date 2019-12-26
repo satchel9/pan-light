@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const dockerImage = "pan-light-slave"
@@ -147,6 +148,15 @@ func (h *Holder) startIns() {
 	defer dockerP.Process.Kill()
 	h.pid = dockerP.Process.Pid
 	// 查询ip
+	go func() { // 最多等待35秒
+		order := h.order
+		<-time.After(35 * time.Second)
+		if order != h.order {
+			return
+		}
+		log.Println("docker run container failed")
+		h.slaveOkNotifier.broadcast()
+	}()
 	h.slaveOkNotifier.wait()
 	bin, err := exec.Command("docker", "inspect", "--format",
 		"{{ .NetworkSettings.IPAddress }}", h.containerName).Output()
@@ -162,6 +172,16 @@ func (h *Holder) startIns() {
 		defer h.vncAddrLock.Unlock()
 		h.vncAddr = addr
 		h.vncAddrCond.Broadcast() // 通知等待链接的代理
+	}()
+	// 超过6分强制结束进程
+	exited := make(chan bool)
+	defer close(exited)
+	go func() {
+		select {
+		case <-time.After(6 * time.Minute):
+			dockerP.Process.Kill()
+		case <-exited:
+		}
 	}()
 	dockerP.Wait()
 }
